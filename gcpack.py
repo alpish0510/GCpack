@@ -1,10 +1,9 @@
 """
-Version 1.0
+Version 2.0
 Author: Alpish Srivastava
-Date: 29 July 2024
+Date: February 2024
 
 """
-
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,24 +28,226 @@ plt.rc("mathtext", fontset="dejavuserif")
 plt.rc("font", family="DejaVu Serif", size=size)
 
 
-
-
 @staticmethod
 def betaprof(r,S0,rc,beta,cxb=None):
-        if cxb==None:
-            return S0*(1 + (r / rc) ** 2) ** (-3 * beta + 0.5)
-        else:
-            return S0*(1 + (r / rc) ** 2) ** (-3 * beta + 0.5) + cxb
+    """
+    Compute the beta model surface brightness profile.
+    
+    Parameters:
+    r   : array-like, radii at which to compute the profile
+    S0  : float, normalization (central surface brightness)
+    rc  : float, core radius
+    beta: float, slope parameter
+    cxb : float, background level (optional)
+    
+    Returns:
+    S_X : array-like, surface brightness profile
+    """
+    if cxb==None:
+        return S0*(1 + (r / rc) ** 2) ** (-3 * beta + 0.5)
+    else:
+        return S0*(1 + (r / rc) ** 2) ** (-3 * beta + 0.5) + cxb
+
 
 @staticmethod
-def beta_model_fit(x,y,yerr,P0):
-    popt,pcov= curve_fit(betaprof,x,y,yerr=yerr,p0=P0)
-    bestfit=betaprof(x,*popt)
+def doublebeta(r,S0,rc,beta,S0_2,rc2,beta2,cxb=None):
+    """
+    Compute the double beta model surface brightness profile.
+
+    Parameters:
+    r   : array-like, radii at which to compute the profile
+    S0  : float, normalization (central surface brightness)
+    rc  : float, core radius
+    beta: float, slope parameter
+    S0_2 : float, normalization 2
+    rc2 : float, core radius 2
+    beta2: float, slope parameter 2
+    cxb : float, background level (optional)
+
+    Returns:
+    S_X : array-like, surface brightness profile
+    """
+
+    if cxb==None:
+        return S0*(1 + (r / rc) ** 2) ** (-3 * beta + 0.5) + S0_2*(1 + (r / rc2) ** 2) ** (-3 * beta2 + 0.5)
+    else:
+        return S0*(1 + (r / rc) ** 2) ** (-3 * beta + 0.5) + S0_2*(1 + (r / rc2) ** 2) ** (-3 * beta2 + 0.5) + cxb
+        
+
+@staticmethod        
+def vikhlinin_profile(r, S0, r_c, beta, alpha, r_s, gamma, epsilon, cxb=None):
+    """
+    Compute the Vikhlinin (2006) X-ray surface brightness profile.
+
+    Parameters:
+    r      : array-like, radii at which to compute the profile
+    S0     : float, normalization (central surface brightness)
+    r_c    : float, core radius
+    beta   : float, outer slope parameter
+    alpha  : float, inner steepening exponent
+    r_s    : float, radius where steepening occurs
+    gamma  : float, smoothness parameter for the transition
+    epsilon: float, steepening exponent
+    cxb    : float, background level (optional)
+
+    Returns:
+    S_X    : array-like, surface brightness profile
+    """
+    term1 = (r / r_c) ** (-alpha)
+    term2 = (1 + (r / r_c) ** 2) ** (-3 * beta + alpha / 2)
+    term3 = (1 + (r / r_s) ** gamma) ** (-epsilon / gamma)
+    if cxb is None:
+        return S0 * term1 * term2 * term3
+    else:
+        return S0 * term1 * term2 * term3 + cxb
+
+def mock_profiles(N, exp_t, num_bins, profile_type="beta"):
+    """
+    Generates mock surface brightness profiles for N clusters with a given exposure time and number of bins.
+
+    Parameters:
+    -----------
+    N : int
+        Number of clusters to generate profiles for.
+    exp_t : float
+        Exposure time in ks.
+    num_bins : int
+        Number of bins in the profile.
+
+    Returns:
+    --------
+    profiles : array_like
+        Array of mock profiles with shape (N, num_bins).
+    bin_centers : array_like
+        Array of bin centers with shape (N, num_bins).
+    bgsub_prof : array_like
+        Array of background subtracted profiles with shape (N, num_bins).
+    """
+    exp_t=exp_t*1e3 #s
+    
+    if profile_type == "beta":
+        # grid of parameters
+        S0=np.random.uniform(1e-5,2e-5,N) #counts/s/arcsec^2
+        r_c=np.random.uniform(150,350,N)    #arcsec
+        beta=np.random.uniform(0.5,0.7,N)   #dimensionless
+        cxb=np.random.uniform(5e-8,1e-7,N) #counts/s/arcsec^2
+    elif profile_type == "doublebeta":
+        # grid of parameters
+        S0=np.random.uniform(1e-5,2e-5,N)
+        r_c=np.random.uniform(150,350,N)
+        beta=np.random.uniform(0.3,0.6,N)
+        cxb=np.random.uniform(8e-8,2e-7,N)
+        S02=np.random.uniform(1e-6,4e-6,N)
+        r_c2=np.random.uniform(500,800,N)
+        beta2=np.random.uniform(0.9,1.2,N)
+
+    elif profile_type == "vikhlinin":
+        # grid of parameters
+        S0=np.random.uniform(1e-5,2e-5,N)
+        r_c=np.random.uniform(150,350,N)
+        beta=np.random.uniform(0.5,0.7,N)
+        cxb=np.random.uniform(5e-8,1e-7,N)
+        alpha=np.random.uniform(0.5,2.0,N)
+        gamma=np.random.uniform(2.5,4.0,N)
+        epsilon=np.random.uniform(2.0,6.0,N)
+        r_s=np.random.uniform(500,2400,N)
+
+    else:
+        raise ValueError("Invalid profile type. Choose either 'beta', 'doublebeta', or 'vikhlinin'.")
+    
+    # grid of bin centers
+    threer200=np.random.uniform(10000,18000,N) #arcsec
+    # grid of profiles
+    profiles = np.zeros((N, num_bins), dtype=float) #blank arrays
+    bin_centers= np.zeros((N, num_bins), dtype=float)
+    bgsub_prof= np.zeros((N, num_bins), dtype=float)
+
+    for i in range(N):
+        r=np.linspace(0,threer200[i],num_bins+1)
+        bin_edges = r[1:]
+        bin_centers[i,:] = r[:-1]+np.diff(r)/2
+        area_bin=np.pi*(bin_edges)**2-np.pi*(np.insert(bin_edges[:-1],0,0))**2  #arcsec^2
+        if profile_type == "beta":
+            pre_profile=betaprof(bin_centers[i,:],S0[i],r_c[i],beta[i],cxb[i])
+        elif profile_type == "doublebeta":
+            pre_profile=doublebeta(bin_centers[i,:],S0[i],r_c[i],beta[i],S02[i],r_c2[i],beta2[i],cxb[i])
+        elif profile_type == "vikhlinin":
+            pre_profile=vikhlinin_profile(bin_centers[i,:],S0[i],r_c[i],beta[i],alpha[i],r_s[i],gamma[i],epsilon[i],cxb[i])
+    
+        counts=np.ceil(pre_profile*area_bin*exp_t)
+        poisson_counts=np.random.poisson(counts)
+        profiles[i,:]=poisson_counts/(area_bin*exp_t)
+        bgsub_prof[i,:]=profiles[i,:]-cxb[i]
+
+    return profiles, bin_centers, bgsub_prof
+
+@staticmethod
+def fitter(x,y,yerr,P0,profile_type="beta"):
+    """
+    Fit a surface brightness profile with different models.
+
+    Parameters:
+    -----------
+    x : array_like
+        Array of bin centers.
+    y : array_like
+        Array of surface brightness values.
+    yerr : array_like
+        Array of surface brightness errors.
+    P0 : array_like
+        Initial guess for the fit parameters.
+    profile_type : str
+        Type of profile to fit. Options are 'beta', 'doublebeta', and 'vikhlinin'.
+
+    Returns:
+    --------
+    bestfit : array_like
+        Best-fit surface brightness profile.
+    popt : array_like
+        Best-fit parameters.
+    pcov : array_like
+        Covariance matrix.
+    """
+    if profile_type == "beta":
+        popt,pcov=curve_fit(betaprof,x,y,yerr=yerr,p0=P0)
+        bestfit=betaprof(x,*popt)
+    elif profile_type == "doublebeta":
+        popt,pcov=curve_fit(doublebeta,x,y,yerr=yerr,p0=P0)
+        bestfit=doublebeta(x,*popt)
+    elif profile_type == "vikhlinin":
+        popt,pcov=curve_fit(vikhlinin_profile,x,y,yerr=yerr,p0=P0)
+        bestfit=vikhlinin_profile(x,*popt)
+    else:
+        raise ValueError("Invalid profile type. Choose either 'beta', 'doublebeta', or 'vikhlinin'.")    
     return bestfit, popt, pcov
 
 
 class SBprofile:
     def __init__(self,S_0,r_c,beta,r,r500,CXB=None,SBvals=None,SBerrors=None,radbins=None):
+        """
+        Initialize the SBprofile class.
+
+        Parameters:
+        -----------
+        S_0 : float
+            Central surface brightness. 
+        r_c : float
+            Core radius.
+        beta : float
+            Beta parameter.
+        r : float
+            Any radius of the profile.
+        r500 : float
+            R500 of the cluster
+        CXB : float
+            Cosmic X-ray background level.
+        SBvals : array_like
+            Array of surface brightness values.
+        SBerrors : array_like
+            Array of surface brightness errors.
+        radbins : array_like
+            Array of bin centers.
+        """
         self.S_0=S_0
         self.r_c=r_c
         self.beta=beta
@@ -115,6 +316,23 @@ class SBprofile:
 
   
     def massprofile(self,T,D_a,plot=False):
+        """
+        Compute the total mass profile of the cluster using an isothermal beta model.
+
+        Parameters:
+        -----------
+        T : float
+            Temperature of the cluster in keV.
+        D_a : float
+            Angular diameter distance to the cluster in m.
+        plot : bool
+            If True, plot the mass profile.
+
+        Returns:
+        --------
+        mass_prof : array_like
+            Total mass profile.
+        """
         k = 1.381e-23  # J/K
         G = 6.67e-11   # Nm^2/Kg^2
         mu = 0.6
@@ -134,7 +352,7 @@ class SBprofile:
             ax.set_xscale('log')
             ax.set_yscale('log')
             ax.set_xlabel('Radius [arcmin]',fontsize=14)
-            ax.set_ylabel('Integrated Total Mass [$M_{\odot}$]',fontsize=14)
+            ax.set_ylabel('Total Mass [$M_{\odot}$]',fontsize=14)
             plt.tight_layout()
             plt.show()
         else:
@@ -143,7 +361,21 @@ class SBprofile:
 
 
 class SBcalc:
-    def __init__(self, path, filename, singlefile=False):
+    def __init__(self, path, filename, singlefile=False,custom_expo=None):
+        """
+        Class to calculate the surface brightness of a cluster using the output from funcnts.
+        
+        Parameters:
+        -----------
+        path : str
+            Path to the directory containing the output files.
+        filename : str
+            Name of the output file.
+        singlefile : bool
+            If True, the input is from a single file (default is False).
+        custom_expo : str
+            Custom exposure key for the exposure file (default is None).
+        """
         self.path = path
         self.filename = filename
         self.singlefile = singlefile
@@ -152,14 +384,25 @@ class SBcalc:
             cts_array = []
             exp_array = []
             PIB_array = []
-            for i in filename:
-                cts=np.loadtxt(f'{path}/{i}_cts_Jul2121.txt',skiprows=1)
-                exp=np.loadtxt(f'{path}/{i}_exp_Jul2121.txt',skiprows=1)
-                PIB=np.loadtxt(f'{path}/{i}_PIB_Jul2121.txt',skiprows=1)
+            if custom_expo == None:
+                for i in filename:
+                    cts=np.loadtxt(f'{path}/{i}_cts_Jul2121.txt',skiprows=1)
+                    exp=np.loadtxt(f'{path}/{i}_exp_Jul2121.txt',skiprows=1)
+                    PIB=np.loadtxt(f'{path}/{i}_PIB_Jul2121.txt',skiprows=1)
 
-                cts_array.append(cts)
-                exp_array.append(exp)
-                PIB_array.append(PIB)
+                    cts_array.append(cts)
+                    exp_array.append(exp)
+                    PIB_array.append(PIB)
+            else:
+                key=custom_expo
+                for i in filename:
+                    cts=np.loadtxt(f'{path}/{i}_cts_Jul2121.txt',skiprows=1)
+                    exp=np.loadtxt(f'{path}/{i}_{key}_exp_Jul2121.txt',skiprows=1)
+                    PIB=np.loadtxt(f'{path}/{i}_PIB_Jul2121.txt',skiprows=1)
+
+                    cts_array.append(cts)
+                    exp_array.append(exp)
+                    PIB_array.append(PIB)
 
             cts_array=np.array(cts_array)
             exp_array=np.array(exp_array)
@@ -176,23 +419,73 @@ class SBcalc:
             self.PIBerr=PIB_array[:,2]
 
         else:
-            cts=np.loadtxt(f'{path}/{filename}_cts_Jul2121.txt',skiprows=1)
-            exp=np.loadtxt(f'{path}/{filename}_exp_Jul2121.txt',skiprows=1)
-            PIB=np.loadtxt(f'{path}/{filename}_PIB_Jul2121.txt',skiprows=1)
+            if custom_expo == None:
+                cts=np.loadtxt(f'{path}/{filename}_cts_Jul2121.txt',skiprows=1)
+                exp=np.loadtxt(f'{path}/{filename}_exp_Jul2121.txt',skiprows=1)
+                PIB=np.loadtxt(f'{path}/{filename}_PIB_Jul2121.txt',skiprows=1)
+            else:
+                key=custom_expo
+                cts=np.loadtxt(f'{path}/{filename}_cts_Jul2121.txt',skiprows=1)
+                exp=np.loadtxt(f'{path}/{filename}_{key}_exp_Jul2121.txt',skiprows=1)
+                PIB=np.loadtxt(f'{path}/{filename}_PIB_Jul2121.txt',skiprows=1)
 
-            self.reg_cts=cts[:,1]
-            self.reg_cts_err=cts[:,2]
-            self.reg_area=cts[:,3]
+            if cts.shape == (6,):
+                self.reg_cts=cts[1]
+                self.reg_cts_err=cts[2]
+                self.reg_area=cts[3]
 
-            self.reg_exp=exp[:,1]
-            self.reg_experr=exp[:,2]
-            
-            self.PIB=PIB[:,1]
-            self.PIBerr=PIB[:,2]
+                self.reg_exp=exp[1]
+                self.reg_experr=exp[2]
+                
+                self.PIB=PIB[1]
+                self.PIBerr=PIB[2]
+                
+            else:
+                self.reg_cts=cts[:,1]
+                self.reg_cts_err=cts[:,2]
+                self.reg_area=cts[:,3]
+
+                self.reg_exp=exp[:,1]
+                self.reg_experr=exp[:,2]
+                
+                self.PIB=PIB[:,1]
+                self.PIBerr=PIB[:,2]
 
 
-    def SBcalculator(self,method,group):
-        pixel_size=4  #arcsec
+    def SBcalculator(self,method,group,pix_size=None,ecf=None):
+        """
+        Calculate the surface brightness of the cluster.
+
+        Parameters:
+        -----------
+        method : str
+            Method to calculate the surface brightness. Options are 'default' which uses gaussian propagation to calculate uncertainties, 
+            'cts_err' which only takes into account the counts error from the PIB and photon image, and 'std_err' which calculates uncertainties on average values as the
+            average of the individual nominal values of the regions involved (used for CXB estimation).
+        group : bool
+            If True, group the regions in the region file together.
+        pix_size : float
+            Pixel size in arcsec (default is 4 for eROSITA).
+        ecf : float
+            Energy conversion factor to convert count-rate to flux units (default is 1).
+
+        Returns:
+        --------
+        SB_an_nom : float
+            Surface brightness value.
+        SB_an_er : float
+            Surface brightness error.
+        """
+        if pix_size==None:
+        	pixel_size=4  #arcsec
+        else:
+            pixel_size=pix_size
+
+        if ecf==None:
+            factor=1
+        else:
+            factor=ecf
+                
         net_cts=unp.uarray(self.reg_cts, self.reg_cts_err)
         exp_time=unp.uarray(self.reg_exp/(self.reg_area/pixel_size**2), self.reg_experr/(self.reg_area/pixel_size**2))
         PIB=unp.uarray(self.PIB, self.PIBerr)
@@ -200,32 +493,32 @@ class SBcalc:
         if self.singlefile == False:
             if group == True:
                 if method == "default":
-                    SB_an = ((net_cts - PIB) / exp_time / self.reg_area)
+                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.mean(stds(SB_an))
                     return SB_an_nom, SB_an_er
                 
                 elif method == "cts_err":
-                    SB_an = ((net_cts - noms(PIB)) / noms(exp_time) / self.reg_area)
+                    SB_an = ((net_cts - noms(PIB))*factor / noms(exp_time) / self.reg_area)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.mean(stds(SB_an))
                     return SB_an_nom, SB_an_er
                 
                 elif method == "std_err":
-                    SB_an = ((net_cts - PIB) / exp_time / self.reg_area)
+                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.std(noms(SB_an))
                     return SB_an_nom, SB_an_er
                 
             else:
                 if method == "default":
-                    SB_an = ((net_cts - PIB) / exp_time / self.reg_area)
+                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
                     return SB_an_nom, SB_an_er
                 
                 elif method == "cts_err":
-                    SB_an = ((net_cts - noms(PIB)) / noms(exp_time) / self.reg_area)
+                    SB_an = ((net_cts - noms(PIB))*factor / noms(exp_time) / self.reg_area)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
                     return SB_an_nom, SB_an_er
@@ -236,35 +529,41 @@ class SBcalc:
         else:
             if group == True:
                 if method == "default":
-                    SB_an = ((net_cts - PIB) / exp_time / self.reg_area)
+                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.mean(stds(SB_an))
                     return SB_an_nom, SB_an_er
                 
                 elif method == "cts_err":
-                    SB_an = ((net_cts - noms(PIB)) / noms(exp_time) / self.reg_area)
+                    SB_an = ((net_cts - noms(PIB))*factor / noms(exp_time) / self.reg_area)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.mean(stds(SB_an))
                     return SB_an_nom, SB_an_er
                 
                 elif method == "std_err":
-                    SB_an = ((net_cts - PIB) / exp_time / self.reg_area)
+                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.std(noms(SB_an))
                     return SB_an_nom, SB_an_er
                 
             else:
                 if method == "default":
-                    SB_an = ((net_cts - PIB) / exp_time / self.reg_area)
+                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
                     return SB_an_nom, SB_an_er
                 
                 elif method == "cts_err":
-                    SB_an = ((net_cts - noms(PIB)) / noms(exp_time) / self.reg_area)
+                    SB_an = ((net_cts - noms(PIB))*factor / noms(exp_time) / self.reg_area)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
                     return SB_an_nom, SB_an_er
                 
                 else:
                     raise AttributeError("This method can't be used.")
+                
+
+
+
+
+
