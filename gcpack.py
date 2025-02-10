@@ -209,13 +209,13 @@ def fitter(x,y,yerr,P0,profile_type="beta"):
         Covariance matrix.
     """
     if profile_type == "beta":
-        popt,pcov=curve_fit(betaprof,x,y,yerr=yerr,p0=P0)
+        popt,pcov=curve_fit(betaprof,x,y,sigma=yerr,p0=P0)
         bestfit=betaprof(x,*popt)
     elif profile_type == "doublebeta":
-        popt,pcov=curve_fit(doublebeta,x,y,yerr=yerr,p0=P0)
+        popt,pcov=curve_fit(doublebeta,x,y,sigma=yerr,p0=P0)
         bestfit=doublebeta(x,*popt)
     elif profile_type == "vikhlinin":
-        popt,pcov=curve_fit(vikhlinin_profile,x,y,yerr=yerr,p0=P0)
+        popt,pcov=curve_fit(vikhlinin_profile,x,y,sigma=yerr,p0=P0)
         bestfit=vikhlinin_profile(x,*popt)
     else:
         raise ValueError("Invalid profile type. Choose either 'beta', 'doublebeta', or 'vikhlinin'.")    
@@ -223,7 +223,7 @@ def fitter(x,y,yerr,P0,profile_type="beta"):
 
 
 class SBprofile:
-    def __init__(self,S_0,r_c,beta,r,r500,CXB=None,SBvals=None,SBerrors=None,radbins=None):
+    def __init__(self,S_0,r_c,beta,r,r500,CXB=None,SBvals=None,SBerrors=None,radbins=None,bin_halfwidth=None):
         """
         Initialize the SBprofile class.
 
@@ -260,55 +260,94 @@ class SBprofile:
             self.SBvals=SBvals
             self.SBerrors=SBerrors
             self.radbins=radbins
+            self.bin_halfwidth=bin_halfwidth
 
         
 
-    def beta_model(self,r=None,values=True, errors=True):
-        if r is not None:
-            rad=r
+    def sb_plotter(self,arcsectokpc,bgsub=False):
+        """
+        Plot the surface brightness profile of the cluster.
+
+        Parameters:
+        -----------
+        arcsectokpc : float
+            Conversion factor from arcsec to kpc.
+        bgsub : bool
+            If True, plot the background subtracted profile.
+        """
+        SB=self.SBvals
+        SBerr=self.SBerrors
+        S_0=self.S_0
+        r_c=self.r_c
+        beta=self.beta
+        r500=self.r500
+        bgall=self.CXB
+        bin_center=self.radbins
+        bin_halfwidth=self.bin_halfwidth
+
+        if bgsub==False:
+            sb_full=SB
+            sb_fullerr=SBerr
         else:
-            rad = np.linspace(0, self.r, 1000)
-        if values and errors:
-            return self.S_0 * (1 + (rad / self.r_c) ** 2) ** (-3 * self.beta + 0.5)
-        elif values and not errors:
-            return noms(self.S_0 * (1 + (rad / self.r_c) ** 2) ** (-3 * self.beta + 0.5))
-        else:
-            raise AttributeError("The beta model can't return only uncertainties!")
-        
-  
-    def plotter(self,innerbin):
+            sub=SB-bgall
+            sb_full=noms(sub)
+            sb_fullerr=stds(sub)
 
-        SB_vals=unp.uarray(self.SBvals,self.SBerrors)-self.CXB
-        SB=noms(SB_vals)
-        SBerr=stds(SB_vals)
-        r_full=np.linspace(innerbin, self.r, len(self.SBvals))
+        rad_bin=bin_center
+        differ=bin_halfwidth
+        r=bin_center
+        if bgsub==False:
+            bestf_bmodel=betaprof(bin_center,S_0,r_c,beta,bgall)
+        else:       
+            bestf_bmodel=betaprof(bin_center,S_0,r_c,beta)
+        r200=r500/0.65 #arcsec
 
-        
+        # Create a figure
         fig = plt.figure(figsize=(7,7))
+
+        # Define the grid
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1],hspace=0)
+
+        # Create the upper subplot on the grid
         ax1 = plt.subplot(gs[0])
+
+        # Create the lower subplot on the grid
         ax2 = plt.subplot(gs[1])
-        ax1.errorbar(self.radbins, SB, yerr=SBerr, fmt='.',barsabove=True,capsize=3,c='#692f8f',label='Surface Brightness')
-        ax1.plot(np.linspace(innerbin,self.r,1000),self.beta_model(values=True,errors=False),label=r'$\beta$ model',color='#f59920',lw='2')
-        ax1.axhline(noms(self.CXB),linestyle='--',color='green',label='CXB')
+
+        # Plot data on the subplots
+        ax1.errorbar(rad_bin,sb_full,yerr=sb_fullerr,xerr=differ,fmt='.',capsize=3,c='#0047ab',label='Surface Brightness')
+        ax1.plot(r,noms(bestf_bmodel),label=r'Best-fit $\beta$-Model',color='#f59920',lw='2')
+        ax1.axhline(noms(bgall),color='#0066ff',label='CXB',linestyle='--',linewidth=2)
+        ax1.fill_between(np.arange(0,np.max(rad_bin)+2000),noms(bgall)-stds(bgall),noms(bgall)+stds(bgall),color='#0066ff',alpha=0.2)
+        ax1.axvline(r500,linestyle='dotted',color='r',linewidth=2)
+        ax1.axvline(r200,linestyle='dotted',color='r',linewidth=2)
+        ax1.text(r500-680,1e-5,r'$R_{500}$',color='r',rotation=90,fontsize=13)
+        ax1.text(r200-1040,1e-5,r'$R_{200}$',color='r',rotation=90,fontsize=13)
+        ax1.set_xlim(8, np.max(rad_bin)+2000)
         ax1.set_ylabel(r'Surface Brightness [$\mathrm{cts/s/arcsec^2}$]')
         ax1.set_xscale('log')
         ax1.set_yscale('log')
         ax1.tick_params(axis='x', which='both', bottom=False, labelbottom=False)  # Remove x-axis ticks and labels
         ax1.legend(fontsize=12)
         ax1_top=ax1.twiny()
-        ax1_top.plot(r_full*0.2435,np.zeros(len(r_full)),alpha=0)
+        ax1_top.plot(rad_bin*arcsectokpc,sb_full,alpha=0)
+        ax1_top.set_xlim(8*arcsectokpc,  (np.max(rad_bin)+2000)*arcsectokpc)
         ax1_top.set_xlabel('Radius [kpc]')
         ax1_top.set_xscale('log')
-        ax2.scatter(self.radbins, (SB-self.beta_model(r=self.radbins,errors=False))/SBerr, marker='.',c='#692f8f')
-        ax2.fill_between(np.linspace(innerbin, self.r, 100), -1, 1, color='grey', alpha=0.2, label='1$\sigma$')
+
+
+
+        ax2.scatter(rad_bin, (sb_full-noms(bestf_bmodel))/sb_fullerr, marker='.',c='#692f8f')
+        ax2.fill_between(np.arange(0,np.max(rad_bin)+2000), -1, 1, color='#0066ff', alpha=0.2, label='1$\sigma$')
         ax2.set_xlabel('Radius [arcsec]')
         ax2.set_ylabel(r'Residuals [$\sigma$]')
         ax2.set_xscale('log')
         ax2.set_ylim(-5, 5)
-        ax2.axhline(0, color='r', linestyle='--')
+        ax2.set_xlim(8, np.max(rad_bin)+2000)
+        ax2.axhline(0, color='k', linestyle='--',linewidth=2)
         ax2.yaxis.set_major_locator(MaxNLocator(4))
         ax2.legend(fontsize=12)
+
 
         # Display the figure
         plt.tight_layout()
