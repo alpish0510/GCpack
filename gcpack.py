@@ -13,6 +13,9 @@ from scipy.optimize import curve_fit
 import matplotlib.gridspec as gridspec
 from matplotlib.ticker import MaxNLocator
 from matplotlib.colors import LogNorm
+from scipy.stats import median_abs_deviation as mad
+import plotly.graph_objects as go
+import pandas as pd
 
 plt.style.use("default")
 plt.rc('xtick', direction='in',top=True)
@@ -261,6 +264,7 @@ class SBprofile:
             self.SBerrors=SBerrors
             self.radbins=radbins
             self.bin_halfwidth=bin_halfwidth
+        
 
         
 
@@ -302,7 +306,7 @@ class SBprofile:
             bestf_bmodel=betaprof(bin_center,S_0,r_c,beta)
         r200=r500/0.65 #arcsec
 
-        # Create a figure
+        #figure
         fig = plt.figure(figsize=(7,7))
 
         # Define the grid
@@ -353,6 +357,21 @@ class SBprofile:
         plt.tight_layout()
         plt.show()
 
+    def sb_significance(self):
+        """
+        Compute the significance of the surface brightness profile.
+
+        Returns:
+        --------
+        significance : float
+            Significance of the surface brightness profile above the average CXB 
+            level in the unit of sigma.
+        """
+        sb=self.SBvals
+        sberr=self.SBerrors
+        bgall=self.CXB
+        sig=(sb-noms(bgall))/(sberr**2 + stds(bgall)**2)**0.5
+        return sig
   
     def massprofile(self,T,D_a,plot=False):
         """
@@ -602,7 +621,219 @@ class SBcalc:
                     raise AttributeError("This method can't be used.")
                 
 
+class RedshiftDistribution:
+    """
+    Class to analyze any redshift distribution of galaxies.
+    """
+    def __init__(self,distribution=None,filename=None):
+        if filename is not None and distribution is None:
+            self.filename=filename
+            self.data=pd.read_csv(filename)
+            self.z=np.array(self.data['Redshift'])
+        elif filename is None and distribution is not None:
+            self.z=distribution
+        else:
+            raise ValueError("Either provide a redshift distribution or a filename.")       
+    
+    def clipandplot(self,zcutL,zcutH):
+        """
+        Method to clip and plot a redshift distribution.
+        
+        Parameters:
+        -----------
+        zcutL : float
+            Lower redshift cut.
+        zcutH : float
+            Upper redshift cut.
 
+        Returns:
+        --------
+        z : array_like
+            Clipped redshift distribution.
+        freq : array_like
+            Frequency of redshifts in each bin.
+        bin_cent : array_like
+            Bin centers.
+        """
+        z=self.z
+        z = z[(z <= zcutH) & (z >= zcutL)]
+        freq, bin_st=np.histogram(z,bins=20)
+        bin_cent=(bin_st[1:]+bin_st[:-1])/2
+        plt.hist(z,bins=20)
+        plt.scatter(bin_cent,freq,c='black',s=20)
+        plt.xlabel("Redshift")
+        plt.ylabel("Frequency")
+        plt.show()
+        return z, freq, bin_cent
+    
+    def clipper(self,zcutL,zcutH,iterations,sigma,method="nsigma"):
+        """
+        Redshift determination method that iteratively clips the redshift distribution using clipping algorithms.
+        
+        Parameters:
+        -----------
+        zcutL : float
+            Lower redshift cut.
+        zcutH : float
+            Upper redshift cut.
+        iterations : int
+            Number of iterations to perform.
+        sigma : float
+            Sigma value for clipping.
+        method : str
+            Method to use for clipping. Choose either 'nsigma' or 'adaptive_nsigma'.
+        
+        Returns:
+        --------
+        z : array_like
+            Clipped redshift distribution.
+        res_mean : array_like
+            Mean values of the redshift distribution at each iteration.
+        res_std : array_like
+            Standard deviation of the redshift distribution at each iteration.
+        res_median : array_like
+            Median values of the redshift distribution at each iteration.
+        res_mad : array_like
+            Median absolute deviation of the redshift distribution at each iteration.
+
+        """
+        self.z=self.z[~np.isnan(self.z)]
+        z=self.z
+        z = z[(z <= zcutH) & (z >= zcutL)]
+        if method=="nsigma":
+            res_mean, res_std,res_median, res_mad=[],[],[],[]
+            for _ in range(iterations):
+                mean = np.mean(z)
+                median=np.median(z)
+                std_dev = np.std(z)
+                med_abs_dev=mad(z)
+                low_cut= mean - (sigma * std_dev)
+                if low_cut > 0:
+                    z = z[(z > low_cut) & (z < mean + sigma * std_dev)] #clips both ends of the distribution
+                else:
+                    z = z[z < mean + sigma * std_dev] #only clips the upper end as the lower end is already below zero
+                print(f"Iteration {_+1}: Mean {mean:.4f}, Std. Dev. {std_dev:.4f}")
+                res_mean.append(mean), res_std.append(std_dev),res_median.append(median), res_mad.append(med_abs_dev) 
+            return z, res_mean, res_std, res_median, res_mad
+        
+        elif method=='adaptive_nsigma':
+            res_mean, res_std=[],[]
+            it_counter=0
+            while sigma >= 1.0:
+                it_counter+=1
+                mean = np.mean(z)
+                std_dev = np.std(z)
+                low_cut= mean - (sigma * std_dev)
+                if low_cut > 0:
+                    z = z[(z > low_cut) & (z < mean + sigma * std_dev)]
+                else:
+                    z = z[z < mean + sigma * std_dev]
+                res_mean.append(mean), res_std.append(std_dev)
+                if len(res_mean) > 3 and np.isclose(res_mean[-1],res_mean[-2],rtol=1e-06,atol=1e-5) and np.isclose(res_mean[-1],res_mean[-2],rtol=1e-05,atol=1e-05):
+                    sigma-=0.5
+                if sigma <= 1 and (np.isclose(res_mean[-1],res_mean[-2],atol=1e-4)):
+                    break
+                print(f"Iteration {it_counter}, Sigma {sigma}: Mean {mean:.4f}, Std. Dev. {std_dev:.4f}")
+                
+            return z, res_mean, res_std
+        
+
+    def threeDDistribution(self, min_z, max_z, sep_RA=None, sep_Dec=None, redshift_type='spectroscopic'):
+        """
+        Method to plot a 3D distribution of galaxies in RA, DEC, and redshift space.
+        
+        Parameters:
+        -----------
+        min_z : float
+            Minimum redshift cut.
+        max_z : float
+            Maximum redshift cut.
+        sep_RA : array_like (if filename is not provided)
+            Array of RA values.
+        sep_Dec : array_like (if filename is not provided)
+            Array of DEC values.
+        redshift_type : str
+            Type of redshift to plot. Choose either 'all', 'spectroscopic', or 'photometric'.
+
+        Returns:
+        --------
+        3D plot of the galaxy distribution.    
+        """
+        if hasattr(self, 'filename'):
+            data=pd.read_csv(self.filename)
+            ra=np.array(data['RA'])
+            dec=np.array(data['DEC'])
+            z=self.z
+            if redshift_type=='all':
+                z=self.z
+                idx_cut = np.argwhere((min_z < z) & (z < max_z)).flatten()
+                z_plot = z[idx_cut]
+                ra_plot = ra[idx_cut]
+                dec_plot = dec[idx_cut]
+
+            elif redshift_type=='spectroscopic':
+                z_plot = z[np.where((data['Redshift Flag'].str.strip() == 'SLS') | 
+                                    (data['Redshift Flag'].str.strip() == 'SUN'))[0]]
+                ra_plot = ra[np.where((data['Redshift Flag'].str.strip() == 'SLS') | 
+                                      (data['Redshift Flag'].str.strip() == 'SUN'))[0]]
+                dec_plot = dec[np.where((data['Redshift Flag'].str.strip() == 'SLS') |
+                                         (data['Redshift Flag'].str.strip() == 'SUN'))[0]]
+                idx_cut_spec = np.argwhere((min_z < z_plot) & (z_plot < max_z)).flatten()
+                z_plot = z_plot[idx_cut_spec]
+                ra_plot = ra_plot[idx_cut_spec]
+                dec_plot = dec_plot[idx_cut_spec]
+
+            elif redshift_type=='photometric':
+                z_plot = z[np.where((data['Redshift Flag'].str.strip() == 'PUN'))[0]]
+                ra_plot = ra[np.where((data['Redshift Flag'].str.strip() == 'PUN'))[0]]
+                dec_plot = dec[np.where((data['Redshift Flag'].str.strip() == 'PUN'))[0]]
+                idx_cut_photo = np.argwhere((min_z < z_plot) & (z_plot < max_z)).flatten()
+                z_plot = z_plot[idx_cut_photo]
+                ra_plot = ra_plot[idx_cut_photo]
+                dec_plot = dec_plot[idx_cut_photo]
+
+            else:
+                raise ValueError("Invalid redshift type. Choose either 'all', 'spectroscopic', or 'photometric'.")
+            
+        else:
+            ra=sep_RA
+            dec=sep_Dec
+            z=self.z
+            idx_cut = np.argwhere((min_z < z) & (z < max_z)).flatten()
+            z_plot = z[idx_cut]
+            ra_plot = ra[idx_cut]
+            dec_plot = dec[idx_cut]
+
+        fig = go.Figure(data=[go.Scatter3d(
+            x=ra_plot,
+            y=dec_plot,
+            z=z_plot,
+            mode='markers',
+            marker=dict(
+                size=2,
+                color=z_plot,                # set color to an array/list of values
+                colorscale='Viridis',      # choose a colorscale
+                opacity=1.0
+            )
+        )])
+
+        fig.update_layout(
+            scene=dict(
+                xaxis_title='RA',
+                yaxis_title='DEC',
+                zaxis_title='Redshift'
+            ),
+            coloraxis_colorbar=dict(
+                title='Redshift'
+            ),
+            width=700,
+            height=700
+        )
+
+        fig.show()
+        
+        
+        
 
 
 
