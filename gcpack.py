@@ -16,6 +16,7 @@ from matplotlib.colors import LogNorm
 from scipy.stats import median_abs_deviation as mad
 import plotly.graph_objects as go
 import pandas as pd
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 plt.style.use("default")
 plt.rc('xtick', direction='in',top=True)
