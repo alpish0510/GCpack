@@ -16,6 +16,7 @@ from matplotlib.colors import LogNorm
 from scipy.stats import median_abs_deviation as mad
 import plotly.graph_objects as go
 import pandas as pd
+from astropy.io import fits
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 plt.style.use("default")
@@ -833,6 +834,7 @@ class RedshiftDistribution:
 
         fig.show()
         
+@staticmethod
 def substructured_density(grid_size=300, rad=4000, n0L=1e-3, n0H=1e-1, rcL=200, rcH=700, betaL=0.4, betaH=0.9, num_profiles=None, random_seed=None):
     """
     Generates an image with multiple beta models slightly offset to create substructures.
@@ -901,6 +903,40 @@ def substructured_density(grid_size=300, rad=4000, n0L=1e-3, n0H=1e-1, rcL=200, 
 
     return image
         
+@staticmethod
+def sbmodel_image(func,params,filename=None,xlen=None,ylen=None):
+    """
+    Generates a 2D image of a surface brightness model that matches the input X-ray image.
 
+    Parameters:
+    -----------
+    func : function
+        Function that generates the surface brightness profile.
+    params : array_like
+        Parameters of the surface brightness profile.
+    filename : str or None
+        Filename of the X-ray image.
+    xlen : int or None
+        Length of the X-axis (pixels).
+    ylen : int or None
+        Length of the Y-axis (pixels).
 
+    Returns:
+    --------
+    profile : 2D numpy array
+        The 2D image of the surface brightness model.
+    """
+    if filename is not None:
+        img=fits.open(filename)
+        xlen=img[0].header['NAXIS1']
+        ylen=img[0].header['NAXIS2']
+    elif xlen is not None and ylen is not None:
+        xlen=xlen
+        ylen=ylen
+    x=np.linspace(-xlen/2,xlen/2,xlen)
+    y=np.linspace(-ylen/2,ylen/2,ylen)
+    x_grid,y_grid=np.meshgrid(x,y)
+    r_grid=np.sqrt(x_grid**2+y_grid**2)
+    profile=func(r_grid,*params)
+    return profile
 
