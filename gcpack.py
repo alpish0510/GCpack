@@ -832,7 +832,73 @@ class RedshiftDistribution:
 
         fig.show()
         
+def substructured_density(grid_size=300, rad=4000, n0L=1e-3, n0H=1e-1, rcL=200, rcH=700, betaL=0.4, betaH=0.9, num_profiles=None, random_seed=None):
+    """
+    Generates an image with multiple beta models slightly offset to create substructures.
+    
+    Parameters:
+    -----------
+    grid_size : int
+        Size of the square image (NxN pixels).
+    rad : float
+        Maximum radial extent (arcsec).
+    n0L : float
+        Minimum central density of the beta model in cm^-3.
+    n0H : float
+        Maximum central density of the beta model in cm^-3.
+    rcL : float
+        Minimum core radius of the beta model in arcsec.
+    rcH : float
+        Maximum core radius of the beta model in arcsec.
+    betaL : float
+        Minimum beta parameter of the beta model.
+    betaH : float
+        Maximum beta parameter of the beta model.        
+    num_profiles : int or None
+        Number of beta profiles to sum (if None, randomly choose 2, 3, or 4).
+    random_seed : int or None
+        Seed for reproducibility.
+
+    Returns:
+    --------
+    image : 2D numpy array
+        The final generated image with substructures.
+    """
+    def beta_model(r, ne, r_c, beta):
+        return ne * (1 + (r / r_c)**2)**(-3 * beta/2)
+    
+    if random_seed is not None:
+        np.random.seed(random_seed)
+
+    # 2D grid
+    x = np.linspace(-rad, rad, grid_size)
+    y = np.linspace(-rad, rad, grid_size)
+    x_grid, y_grid = np.meshgrid(x, y)
+    r_grid = np.sqrt(x_grid**2 + y_grid**2)
+
+    # Randomly decide number of components 
+    if num_profiles is None:
+        num_profiles = np.random.choice([2, 3, 4])
+
+    image = np.zeros((grid_size, grid_size))
+
+    # Generate beta model components
+    for _ in range(num_profiles):
+        # Randomly shift centers slightly
+        shift=np.random.uniform(0.08,0.2)
+        x_shift = np.random.uniform(-shift * rad, shift * rad)
+        y_shift = np.random.uniform(-shift * rad, shift * rad)
+        r_shifted = np.sqrt((x_grid - x_shift) ** 2 + (y_grid - y_shift) ** 2)
         
+        # Random beta model parameters
+        ne = np.random.uniform(n0L,n0H) 
+        r_c = np.random.uniform(rcL,rcH)  
+        beta = np.random.uniform(betaL, betaH)  
+
+        # Generate beta profile and add it to the image
+        image += beta_model(r_shifted, ne, r_c, beta)
+
+    return image
         
 
 
