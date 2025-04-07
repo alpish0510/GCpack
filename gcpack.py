@@ -553,32 +553,32 @@ class SBcalc:
         if self.singlefile == False:
             if group == True:
                 if method == "default":
-                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
+                    SB_an = np.where(exp_time != 0, ((net_cts - PIB) * factor / exp_time / self.reg_area), 0)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.mean(stds(SB_an))
                     return SB_an_nom, SB_an_er
                 
                 elif method == "cts_err":
-                    SB_an = ((net_cts - noms(PIB))*factor / noms(exp_time) / self.reg_area)
+                    SB_an = np.where(noms(exp_time) != 0, ((net_cts - noms(PIB)) * factor / noms(exp_time) / self.reg_area), 0)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.mean(stds(SB_an))
                     return SB_an_nom, SB_an_er
-                
+
                 elif method == "std_err":
-                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
+                    SB_an = np.where(noms(exp_time) != 0, ((net_cts - PIB) * factor / exp_time / self.reg_area), 0)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.std(noms(SB_an))
                     return SB_an_nom, SB_an_er
                 
             else:
                 if method == "default":
-                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
+                    SB_an = np.where(noms(exp_time) != 0, ((net_cts - PIB) * factor / exp_time / self.reg_area), 0)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
                     return SB_an_nom, SB_an_er
-                
+
                 elif method == "cts_err":
-                    SB_an = ((net_cts - noms(PIB))*factor / noms(exp_time) / self.reg_area)
+                    SB_an = np.where(noms(exp_time) != 0, ((net_cts - noms(PIB)) * factor / noms(exp_time) / self.reg_area), 0)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
                     return SB_an_nom, SB_an_er
@@ -589,36 +589,36 @@ class SBcalc:
         else:
             if group == True:
                 if method == "default":
-                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
+                    SB_an = np.where(noms(exp_time) != 0, ((net_cts - PIB) * factor / exp_time / self.reg_area), 0)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.mean(stds(SB_an))
                     return SB_an_nom, SB_an_er
-                
+
                 elif method == "cts_err":
-                    SB_an = ((net_cts - noms(PIB))*factor / noms(exp_time) / self.reg_area)
+                    SB_an = np.where(noms(exp_time) != 0, ((net_cts - noms(PIB)) * factor / noms(exp_time) / self.reg_area), 0)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.mean(stds(SB_an))
                     return SB_an_nom, SB_an_er
-                
+
                 elif method == "std_err":
-                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
+                    SB_an = np.where(noms(exp_time) != 0, ((net_cts - PIB) * factor / exp_time / self.reg_area), 0)
                     SB_an_nom = np.mean(noms(SB_an))
                     SB_an_er = np.std(noms(SB_an))
                     return SB_an_nom, SB_an_er
-                
+
             else:
                 if method == "default":
-                    SB_an = ((net_cts - PIB)*factor / exp_time / self.reg_area)
+                    SB_an = np.where(noms(exp_time) != 0, ((net_cts - PIB) * factor / exp_time / self.reg_area), 0)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
                     return SB_an_nom, SB_an_er
-                
+
                 elif method == "cts_err":
-                    SB_an = ((net_cts - noms(PIB))*factor / noms(exp_time) / self.reg_area)
+                    SB_an = np.where(noms(exp_time) != 0, ((net_cts - noms(PIB)) * factor / noms(exp_time) / self.reg_area), 0)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
                     return SB_an_nom, SB_an_er
-                
+
                 else:
                     raise AttributeError("This method can't be used.")
                 
