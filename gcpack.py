@@ -1,7 +1,7 @@
 """
-Version 2.0
+Version 3.0
 Author: Alpish Srivastava
-Date: February 2024
+Date: April 2024
 
 """
 
@@ -550,98 +550,85 @@ class SBcalc:
         exp_time=unp.uarray(self.reg_exp/(self.reg_area/pixel_size**2), self.reg_experr/(self.reg_area/pixel_size**2))
         PIB=unp.uarray(self.PIB, self.PIBerr)
 
+        exp_time[noms(exp_time) == 0] = np.nan
+        self.reg_area[noms(self.reg_area) == 0] = np.nan
+
         if self.singlefile == False:
             if group == True:
                 if method == "default":
-                    SB_an = np.where((noms(exp_time) != 0) & (self.reg_area != 0), 
-                                     ((net_cts - PIB) * factor / exp_time / self.reg_area), 
-                                     0)
-                    SB_an_nom = np.mean(noms(SB_an))
-                    SB_an_er = np.mean(stds(SB_an))
+                    SB_an = ((net_cts - PIB) * factor / exp_time / self.reg_area)
+                    SB_an_nom = np.nanmean(noms(SB_an))
+                    SB_an_er = np.nanmean(stds(SB_an))
                     return SB_an_nom, SB_an_er
-                
+
                 elif method == "cts_err":
-                    SB_an = np.where((noms(exp_time) != 0) & (self.reg_area != 0), 
-                                     ((net_cts - noms(PIB)) * factor / noms(exp_time) / self.reg_area), 
-                                     0)
-                    SB_an_nom = np.mean(noms(SB_an))
-                    SB_an_er = np.mean(stds(SB_an))
+                    SB_an = ((net_cts - noms(PIB)) * factor / exp_time / self.reg_area)
+                    SB_an_nom = np.nanmean(noms(SB_an))
+                    SB_an_er = np.nanmean(stds(SB_an))
                     return SB_an_nom, SB_an_er
 
                 elif method == "std_err":
-                    SB_an = np.where((noms(exp_time) != 0) & (self.reg_area != 0), 
-                                     ((net_cts - PIB) * factor / exp_time / self.reg_area), 
-                                     0)
-                    SB_an_nom = np.mean(noms(SB_an))
-                    SB_an_er = np.std(noms(SB_an))
+                    SB_an = ((net_cts - PIB) * factor / exp_time / self.reg_area)
+                    SB_an_nom = np.nanmean(noms(SB_an))
+                    SB_an_er = np.nanstd(noms(SB_an))
                     return SB_an_nom, SB_an_er
-                
+
             else:
                 if method == "default":
-                    SB_an = np.where((noms(exp_time) != 0) & (self.reg_area != 0), 
-                                     ((net_cts - PIB) * factor / exp_time / self.reg_area), 
-                                     0)
+                    SB_an = ((net_cts - PIB) * factor / exp_time / self.reg_area)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
+                    SB_an_nom[np.isnan(SB_an_nom)] = 0  # Replace NaN with zeros
                     return SB_an_nom, SB_an_er
 
                 elif method == "cts_err":
-                    SB_an = np.where((noms(exp_time) != 0) & (self.reg_area != 0), 
-                                     ((net_cts - noms(PIB)) * factor / noms(exp_time) / self.reg_area), 
-                                     0)
+                    SB_an = ((net_cts - noms(PIB)) * factor / exp_time / self.reg_area)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
+                    SB_an_nom[np.isnan(SB_an_nom)] = 0  # Replace NaN with zeros
                     return SB_an_nom, SB_an_er
-                
+
                 else:
                     raise AttributeError("This method can't be used.")
-                
+
         else:
             if group == True:
                 if method == "default":
-                    SB_an = np.where((noms(exp_time) != 0) & (self.reg_area != 0), 
-                                     ((net_cts - PIB) * factor / exp_time / self.reg_area), 
-                                     0)
-                    SB_an_nom = np.mean(noms(SB_an))
-                    SB_an_er = np.mean(stds(SB_an))
+                    SB_an = ((net_cts - PIB) * factor / exp_time / self.reg_area)
+                    SB_an_nom = np.nanmean(noms(SB_an))
+                    SB_an_er = np.nanmean(stds(SB_an))
                     return SB_an_nom, SB_an_er
 
                 elif method == "cts_err":
-                    SB_an = np.where((noms(exp_time) != 0) & (self.reg_area != 0), 
-                                     ((net_cts - noms(PIB)) * factor / noms(exp_time) / self.reg_area), 
-                                     0)
-                    SB_an_nom = np.mean(noms(SB_an))
-                    SB_an_er = np.mean(stds(SB_an))
+                    SB_an = ((net_cts - noms(PIB)) * factor / exp_time / self.reg_area)
+                    SB_an_nom = np.nanmean(noms(SB_an))
+                    SB_an_er = np.nanmean(stds(SB_an))
                     return SB_an_nom, SB_an_er
 
                 elif method == "std_err":
-                    SB_an = np.where((noms(exp_time) != 0) & (self.reg_area != 0), 
-                                     ((net_cts - PIB) * factor / exp_time / self.reg_area), 
-                                     0)
-                    SB_an_nom = np.mean(noms(SB_an))
-                    SB_an_er = np.std(noms(SB_an))
+                    SB_an = ((net_cts - PIB) * factor / exp_time / self.reg_area)
+                    SB_an_nom = np.nanmean(noms(SB_an))
+                    SB_an_er = np.nanstd(noms(SB_an))
                     return SB_an_nom, SB_an_er
 
             else:
                 if method == "default":
-                    SB_an = np.where((noms(exp_time) != 0) & (self.reg_area != 0), 
-                                     ((net_cts - PIB) * factor / exp_time / self.reg_area), 
-                                     0)
+                    SB_an = ((net_cts - PIB) * factor / exp_time / self.reg_area)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
+                    SB_an_nom[np.isnan(SB_an_nom)] = 0  # Replace NaN with zeros
                     return SB_an_nom, SB_an_er
 
                 elif method == "cts_err":
-                    SB_an = np.where((noms(exp_time) != 0) & (self.reg_area != 0), 
-                                     ((net_cts - noms(PIB)) * factor / noms(exp_time) / self.reg_area), 
-                                     0)
+                    SB_an = ((net_cts - noms(PIB)) * factor /exp_time / self.reg_area)
                     SB_an_nom = noms(SB_an)
                     SB_an_er = stds(SB_an)
+                    SB_an_nom[np.isnan(SB_an_nom)] = 0  # Replace NaN with zeros
                     return SB_an_nom, SB_an_er
 
                 else:
                     raise AttributeError("This method can't be used.")
-                
+                    
 
 class RedshiftDistribution:
     """
