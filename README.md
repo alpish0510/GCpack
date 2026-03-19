@@ -121,6 +121,6 @@ bestfit, params, cov = fitter(
 
 ## Author
 
-Alpish Srivastava
-PhD Candidate in Astrophysics
+Alpish Srivastava\
+PhD Candidate in Astrophysics\
 University of Rome Tor Vergata
